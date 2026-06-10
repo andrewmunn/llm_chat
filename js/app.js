@@ -535,12 +535,12 @@
   }
 
   function showBanner(text) {
+    document.querySelector(".error-banner")?.remove();
     const banner = document.createElement("div");
-    banner.className = "msg";
-    banner.innerHTML = `<div class="msg-inner" style="border:1px solid var(--danger); color: var(--danger);"></div>`;
-    banner.querySelector(".msg-inner").textContent = text;
-    els.messages.appendChild(banner);
-    scrollToBottom(true);
+    banner.className = "error-banner";
+    banner.textContent = text;
+    banner.addEventListener("click", () => banner.remove());
+    document.body.appendChild(banner);
     setTimeout(() => banner.remove(), 8000);
   }
 

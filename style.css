@@ -407,6 +407,22 @@ select:focus, input:focus, textarea:focus { outline: 1px solid var(--accent-dim)
   margin-top: 14px;
 }
 
+.error-banner {
+  position: fixed;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  background: var(--bg-raised);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 8px;
+  padding: 10px 16px;
+  max-width: 70vw;
+  cursor: pointer;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+
 .empty-state {
   text-align: center;
   color: var(--text-dim);
