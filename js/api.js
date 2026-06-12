@@ -16,9 +16,11 @@ const Api = (() => {
     return resp.json();
   }
 
-  // FNV-1a over the [role, content] pairs; enough to detect divergence.
-  function hashMessages(messages) {
-    const str = JSON.stringify(messages.map((m) => [m.role, m.content]));
+  // FNV-1a over the system prompt + [role, content] pairs; enough to detect
+  // divergence. The system prompt is included because it's delivered inside
+  // the session's first message — changing it requires a fresh session.
+  function fingerprint(systemPrompt, messages) {
+    const str = JSON.stringify([systemPrompt || "", messages.map((m) => [m.role, m.content])]);
     let h = 0x811c9dc5;
     for (let i = 0; i < str.length; i++) {
       h ^= str.charCodeAt(i);
@@ -33,7 +35,7 @@ const Api = (() => {
     const canResume =
       convo.sessionId &&
       last?.role === "user" &&
-      hashMessages(contextMessages.slice(0, -1)) === convo.sessionHash;
+      fingerprint(convo.systemPrompt, contextMessages.slice(0, -1)) === convo.sessionHash;
 
     const base = {
       model: convo.model,
@@ -102,5 +104,5 @@ const Api = (() => {
     };
   }
 
-  return { fetchModels, hashMessages, buildRequest, streamCompletion };
+  return { fetchModels, fingerprint, buildRequest, streamCompletion };
 })();

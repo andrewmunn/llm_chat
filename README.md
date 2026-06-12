@@ -25,12 +25,17 @@ Requirements: Bun or Node.js, and the [Claude Code CLI](https://claude.com/claud
 - **Markdown rendering** via vendored [marked](https://github.com/markedjs/marked), sanitized with [DOMPurify](https://github.com/cure53/DOMPurify).
 - **No tools** — the CLI runs with `--tools ""` and an isolated working directory (`.claude-sessions/`), so chats are pure conversation: no file access, no CLAUDE.md pickup.
 
+## Reading the usage badge
+
+The total input count looks large (~26k) because every request includes Claude Code's base system prompt — but that prefix is a **shared cache read** (~0.1× price) across *all* conversations, shown in green. What matters is the `$` figure and the non-cached remainder. Your system prompt is deliberately delivered inside the conversation's first message rather than via `--system-prompt`: any custom system-prompt flag switches the CLI to its full ~14k prompt *and* makes the whole thing a per-conversation cache entry, costing ~20k token-equivalents extra per new conversation. Measured behavior (Haiku): a resumed turn writes only ~80 uncached tokens; even a post-edit rebuild writes only the transcript itself.
+
 ## How session reuse works
 
 The conversation stores `{sessionId, sessionHash}` where the hash fingerprints the message history the CC session represents.
 
 - **Append** (the common case): history unchanged since the last reply → `--resume <sessionId>` with just the new message. Fast and cache-friendly.
 - **Edit / delete / regenerate**: hash no longer matches → fresh session; the prior conversation is sent as a tagged transcript in the first prompt, and subsequent appends resume the *new* session.
+- **System prompt edits** also re-fingerprint (the prompt lives in the session's first message), so they trigger the same one-time rebuild.
 
 The usage badge makes this visible: resumed turns show most input tokens in green (`cached`).
 

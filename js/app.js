@@ -482,7 +482,8 @@
       // Remember which history this CC session now represents, so the next
       // plain append can resume it instead of resending the transcript.
       convo.sessionId = result.sessionId;
-      convo.sessionHash = Api.hashMessages(
+      convo.sessionHash = Api.fingerprint(
+        convo.systemPrompt,
         [...contextMessages, { role: "assistant", content: msg.content }]
       );
     } catch (err) {

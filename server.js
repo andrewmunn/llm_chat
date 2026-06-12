@@ -60,20 +60,33 @@ function cleanEnv() {
   return env;
 }
 
+// Conversation instructions and transcripts ride inside the prompt rather
+// than via --system-prompt: passing any system-prompt flag switches the CLI
+// to its full (~14k-token) system prompt and makes the whole thing a
+// per-conversation cache entry. With the default prompt untouched (plus
+// --exclude-dynamic-system-prompt-sections), the base prompt is byte-identical
+// across all conversations and stays a ~0.1x-cost cache read.
+function instructionsHeader(systemPrompt) {
+  const instr = (systemPrompt || "").trim();
+  return instr
+    ? `<conversation-instructions>\nFollow these instructions for this conversation:\n\n${instr}\n</conversation-instructions>\n\n`
+    : "";
+}
+
 // Serialize a conversation into a single prompt for fresh sessions
 // (used after edits/deletes/regenerates, when no resumable session matches).
-const TRANSCRIPT_NOTE =
-  "\n\n---\nThe user message you receive contains a conversation transcript. " +
-  "Turns are delimited by <user-turn> and <assistant-turn> tags. You are the assistant. " +
-  "Write the next assistant reply only — no tags, no role labels, no commentary about the format.";
-
 function serializeTranscript(messages) {
-  return messages
+  const transcript = messages
     .map((m) => {
       const tag = m.role === "user" ? "user-turn" : "assistant-turn";
       return `<${tag}>\n${m.content}\n</${tag}>`;
     })
     .join("\n\n");
+  return (
+    "The following is the conversation so far; you are the assistant in it. " +
+    "Continue the conversation: write the next assistant reply only — no tags, " +
+    "no role labels, no commentary about the format.\n\n" + transcript
+  );
 }
 
 // ---------- /api/chat ----------
@@ -106,28 +119,29 @@ function runChat(params, req, res) {
     // (OAuth/keychain) auth resolution. Project/local settings stay excluded
     // because the CLI runs in the isolated .claude-sessions dir anyway.
     "--setting-sources", "user",
+    // Keep the default system prompt byte-identical across machines/projects
+    // so it's always a shared cache read.
+    "--exclude-dynamic-system-prompt-sections",
   ];
   if (model) args.push("--model", model);
   if (effort && EFFORT_LEVELS.has(effort)) args.push("--effort", effort);
 
   let stdinPrompt;
-  let system = (systemPrompt || "").trim() || "You are a helpful assistant.";
 
   if (mode === "resume" && sessionId && prompt) {
+    // Instructions already live in the session's first message.
     args.push("--resume", sessionId);
     stdinPrompt = prompt;
   } else if (Array.isArray(messages) && messages.length === 1 && messages[0].role === "user") {
-    // Fresh conversation with a single user message: send it directly.
-    stdinPrompt = messages[0].content;
+    // Fresh conversation with a single user message.
+    stdinPrompt = instructionsHeader(systemPrompt) + messages[0].content;
   } else if (Array.isArray(messages) && messages.length > 0) {
     // Fresh session over an edited/diverged history: send the transcript.
-    system += TRANSCRIPT_NOTE;
-    stdinPrompt = serializeTranscript(messages);
+    stdinPrompt = instructionsHeader(systemPrompt) + serializeTranscript(messages);
   } else {
     res.writeHead(400).end("no messages");
     return;
   }
-  args.push("--system-prompt", system);
 
   res.writeHead(200, {
     "Content-Type": "application/x-ndjson; charset=utf-8",
