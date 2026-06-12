@@ -98,7 +98,10 @@ function runChat(params, req, res) {
     "--include-partial-messages",
     "--verbose",
     "--tools", "",
-    "--setting-sources", "",
+    // Keep the "user" settings scope: skipping it can break subscription
+    // (OAuth/keychain) auth resolution. Project/local settings stay excluded
+    // because the CLI runs in the isolated .claude-sessions dir anyway.
+    "--setting-sources", "user",
   ];
   if (model) args.push("--model", model);
   if (effort && EFFORT_LEVELS.has(effort)) args.push("--effort", effort);
@@ -146,7 +149,10 @@ function runChat(params, req, res) {
   child.stdin.write(stdinPrompt);
   child.stdin.end();
 
-  child.stderr.on("data", (d) => { stderrBuf += d; });
+  child.stderr.on("data", (d) => {
+    stderrBuf += d;
+    process.stderr.write(`[claude stderr] ${d}`);
+  });
 
   child.stdout.on("data", (data) => {
     buf += data;
@@ -166,6 +172,9 @@ function runChat(params, req, res) {
   });
 
   function handleEvent(ev) {
+    if (ev.type === "system" && ev.subtype === "api_retry") {
+      console.error(`[claude] api_retry ${ev.error_status}: ${ev.error}`);
+    }
     switch (ev.type) {
       case "stream_event": {
         const e = ev.event;
