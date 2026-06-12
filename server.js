@@ -53,6 +53,10 @@ function cleanEnv() {
       delete env[k];
     }
   }
+  // Long-lived subscription token from `claude setup-token` — keep it.
+  if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+    env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  }
   return env;
 }
 
