@@ -1,28 +1,41 @@
 # LLM Chat
 
-A frontend-only clone of OpenRouter's chat interface with **aggressive Anthropic prompt caching** — built for long story-writing conversations where you frequently edit and regenerate messages.
+A local chat UI for story writing, backed by the **Claude Code CLI** (`claude -p`) — so usage draws from your Claude subscription's included API credits instead of a pay-as-you-go key. Built for long conversations where you frequently edit and regenerate messages.
 
-No webserver, no build step, no framework. Just open `index.html` in a browser.
-
-## Features
-
-- **Prompt caching** — for `anthropic/*` models, up to 4 `cache_control` breakpoints are placed automatically: the system prompt, the last message, and two slow-moving anchors inside the history. Editing a message near the end still gets a cache *read* at the highest anchor below the edit, so only the suffix is re-processed.
-- **Streaming** token-by-token via SSE, with a Stop button.
-- **Full message editing** — edit user *and* assistant messages, delete messages, delete thinking blocks, regenerate any assistant message in place.
-- **Per-response usage badge** — prompt/completion tokens, cached tokens (cache hits shown in green), exact cost, and the model that produced the response. Hover for a breakdown.
-- **Model picker** — searchable, fetched live from OpenRouter's `/models` endpoint with pricing and context length; switchable mid-conversation.
-- **Reasoning control** — off/low/medium/high via OpenRouter's unified `reasoning.effort` parameter. Thinking is displayed (and deletable) but never sent back, keeping prompts cache-stable.
-- **Multiple conversations** — sidebar with rename (double-click) and delete; everything persists in localStorage.
-- **Markdown rendering** via vendored [marked](https://github.com/markedjs/marked), sanitized with [DOMPurify](https://github.com/cure53/DOMPurify).
+One tiny zero-dependency Node server; plain HTML/CSS/JS frontend; everything persists in your browser's localStorage.
 
 ## Usage
 
-1. Open `index.html` in a browser.
-2. Click ⚙ Settings and paste your [OpenRouter API key](https://openrouter.ai/keys) (stored only in localStorage).
-3. Pick a model, optionally set a system prompt, and chat.
+```sh
+bun server.js           # or: node server.js — then open http://localhost:8741
+```
+
+Requirements: Bun or Node.js, and the [Claude Code CLI](https://claude.com/claude-code) installed and logged in (`claude auth status` should show your subscription).
+
+## Features
+
+- **Subscription-billed** — the server shells out to `claude -p`, which authenticates the same way your terminal `claude` does. No API key in the app.
+- **Cheap appends via session resume** — each conversation is backed by a Claude Code session. Sending a new message resumes that session (`--resume`), so only the new message is uploaded and Claude Code's built-in prompt caching applies to the whole history. Editing/deleting/regenerating diverges from the session, so the next request transparently starts a fresh one from the serialized transcript — correct, just a one-time cache rebuild.
+- **Streaming** token-by-token (`--output-format stream-json --include-partial-messages`), with a Stop button that kills the CLI process.
+- **Full message editing** — edit user *and* assistant messages, delete messages, delete thinking blocks, regenerate any assistant message in place.
+- **Per-response usage badge** — total input tokens, cached tokens (green), output tokens, and the CLI-reported cost. Hover for the breakdown including cache writes.
+- **Model picker** — current Claude models (Fable 5, Opus 4.8/4.7/4.6, Sonnet 4.6/4.5, Haiku 4.5), switchable mid-conversation.
+- **Effort control** — Default/Low/Medium/High/X-High/Max via `claude --effort`.
+- **Multiple conversations** — sidebar with rename (double-click) and delete.
+- **Markdown rendering** via vendored [marked](https://github.com/markedjs/marked), sanitized with [DOMPurify](https://github.com/cure53/DOMPurify).
+- **No tools** — the CLI runs with `--tools ""` and an isolated working directory (`.claude-sessions/`), so chats are pure conversation: no file access, no CLAUDE.md pickup.
+
+## How session reuse works
+
+The conversation stores `{sessionId, sessionHash}` where the hash fingerprints the message history the CC session represents.
+
+- **Append** (the common case): history unchanged since the last reply → `--resume <sessionId>` with just the new message. Fast and cache-friendly.
+- **Edit / delete / regenerate**: hash no longer matches → fresh session; the prior conversation is sent as a tagged transcript in the first prompt, and subsequent appends resume the *new* session.
+
+The usage badge makes this visible: resumed turns show most input tokens in green (`cached`).
 
 ## Notes
 
-- Conversations and the API key live in your browser's localStorage — clearing site data deletes them.
-- Cache reads only occur on Anthropic models within the cache TTL (~5 minutes), so back-to-back turns benefit most.
-- The first request after editing the system prompt or switching models is always a full cache miss (prefix-match semantics).
+- Conversations live in localStorage; the CLI also persists its own session transcripts under `~/.claude/projects/`.
+- The displayed cost is what the API call *would* cost — with subscription auth it draws from your included credits.
+- The server binds to `127.0.0.1` only.

@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "static",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8741"],
+      "name": "server",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["server.js", "8741"],
       "port": 8741
     }
   ]

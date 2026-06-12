@@ -10,7 +10,6 @@
     newChatBtn: $("#new-chat-btn"),
     collapseBtn: $("#collapse-btn"),
     expandBtn: $("#expand-btn"),
-    settingsBtn: $("#settings-btn"),
     modelBtn: $("#model-btn"),
     modelDropdown: $("#model-dropdown"),
     modelSearch: $("#model-search"),
@@ -23,10 +22,6 @@
     input: $("#input"),
     sendBtn: $("#send-btn"),
     stopBtn: $("#stop-btn"),
-    settingsModal: $("#settings-modal"),
-    apiKeyInput: $("#api-key-input"),
-    settingsSave: $("#settings-save"),
-    settingsCancel: $("#settings-cancel"),
   };
 
   let convo = null;          // current conversation object
@@ -49,8 +44,6 @@
       models = m;
       renderModelButton();
     }).catch((e) => showBanner(`Could not load model list: ${e.message}`));
-
-    if (!Store.getApiKey()) openSettings();
   }
 
   function bindEvents() {
@@ -68,15 +61,6 @@
     els.expandBtn.addEventListener("click", () => {
       els.sidebar.classList.remove("collapsed");
       els.expandBtn.classList.add("hidden");
-    });
-
-    els.settingsBtn.addEventListener("click", openSettings);
-    els.settingsSave.addEventListener("click", () => {
-      Store.setApiKey(els.apiKeyInput.value);
-      els.settingsModal.classList.add("hidden");
-    });
-    els.settingsCancel.addEventListener("click", () => {
-      els.settingsModal.classList.add("hidden");
     });
 
     // model picker
@@ -218,11 +202,9 @@
       const item = document.createElement("div");
       item.className = "model-item";
       item.dataset.id = m.id;
-      const inPrice = (m.promptPrice * 1e6).toFixed(2);
-      const outPrice = (m.completionPrice * 1e6).toFixed(2);
       item.innerHTML = `
         <div class="model-id"></div>
-        <div class="model-meta">$${inPrice}/M in · $${outPrice}/M out · ${formatNum(m.contextLength)} ctx</div>`;
+        <div class="model-meta">${m.name} · $${m.promptPrice}/M in · $${m.completionPrice}/M out</div>`;
       item.querySelector(".model-id").textContent = m.id;
       item.addEventListener("click", () => selectModel(m.id));
       els.modelList.appendChild(item);
@@ -243,7 +225,9 @@
 
   function renderConversation() {
     renderModelButton();
-    els.reasoningSelect.value = convo.reasoningEffort || "off";
+    const effort = convo.reasoningEffort;
+    els.reasoningSelect.value =
+      [...els.reasoningSelect.options].some((o) => o.value === effort) ? effort : "default";
     els.systemPrompt.value = convo.systemPrompt || "";
     renderSystemPromptHint();
     renderMessages();
@@ -350,6 +334,12 @@
   }
 
   function buildUsageBadge(u) {
+    // Old OpenRouter-era messages stored promptTokens (total incl. cached);
+    // CLI usage stores inputTokens as the uncached remainder only.
+    const totalIn = u.promptTokens
+      ?? (u.inputTokens ?? 0) + (u.cachedTokens ?? 0) + (u.cacheWriteTokens ?? 0);
+    const out = u.completionTokens ?? u.outputTokens ?? 0;
+
     const badge = document.createElement("div");
     badge.className = "usage-badge";
     const cached = u.cachedTokens
@@ -357,12 +347,12 @@
       : "";
     const cost = u.cost != null ? ` · $${u.cost.toFixed(u.cost < 0.01 ? 5 : 4)}` : "";
     badge.innerHTML =
-      `↑ ${formatNum(u.promptTokens)}${cached} · ↓ ${formatNum(u.completionTokens)}${cost} · ${u.model}`;
+      `↑ ${formatNum(totalIn)}${cached} · ↓ ${formatNum(out)}${cost} · ${u.model}`;
     badge.title =
-      `Prompt tokens: ${u.promptTokens}\n` +
-      `Cached (read): ${u.cachedTokens}\n` +
+      `Input tokens (total): ${totalIn}\n` +
+      `Cached (read): ${u.cachedTokens ?? 0}\n` +
       (u.cacheWriteTokens ? `Cache write: ${u.cacheWriteTokens}\n` : "") +
-      `Completion tokens: ${u.completionTokens}\n` +
+      `Output tokens: ${out}\n` +
       (u.cost != null ? `Cost: $${u.cost}\n` : "") +
       `Model: ${u.model}`;
     return badge;
@@ -407,10 +397,6 @@
   // ---------- sending / streaming ----------
 
   function ensureReady() {
-    if (!Store.getApiKey()) {
-      openSettings();
-      return false;
-    }
     if (!convo.model) {
       showBanner("Pick a model first.");
       return false;
@@ -486,16 +472,19 @@
 
     try {
       const result = await Api.streamCompletion({
-        apiKey: Store.getApiKey(),
-        model: convo.model,
-        messages: Api.buildMessages({ ...convo, messages: contextMessages }),
-        reasoningEffort: convo.reasoningEffort,
+        request: Api.buildRequest(convo, contextMessages),
         signal: abortController.signal,
         onUpdate: (state) => { lastState = state; paint(state); },
       });
       msg.content = result.content;
       msg.reasoning = result.reasoning || null;
-      msg.usage = Api.normalizeUsage(result.usage, convo.model);
+      msg.usage = { ...result.usage, model: convo.model };
+      // Remember which history this CC session now represents, so the next
+      // plain append can resume it instead of resending the transcript.
+      convo.sessionId = result.sessionId;
+      convo.sessionHash = Api.hashMessages(
+        [...contextMessages, { role: "assistant", content: msg.content }]
+      );
     } catch (err) {
       if (err.name === "AbortError") {
         // keep whatever streamed in so far
@@ -527,12 +516,6 @@
   }
 
   // ---------- misc ----------
-
-  function openSettings() {
-    els.apiKeyInput.value = Store.getApiKey();
-    els.settingsModal.classList.remove("hidden");
-    els.apiKeyInput.focus();
-  }
 
   function showBanner(text) {
     document.querySelector(".error-banner")?.remove();

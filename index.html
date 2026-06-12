@@ -16,7 +16,7 @@
     </div>
     <nav id="convo-list"></nav>
     <div class="sidebar-footer">
-      <button id="settings-btn">⚙ Settings</button>
+      <span class="footer-note">Powered by <code>claude -p</code></span>
     </div>
   </aside>
 
@@ -30,11 +30,10 @@
           <div id="model-list"></div>
         </div>
       </div>
-      <label id="reasoning-label" title="Reasoning effort">
+      <label id="reasoning-label" title="Effort level (claude --effort)">
         🧠
         <select id="reasoning-select">
-          <option value="off">Off</option>
-          <option value="minimal">Minimal</option>
+          <option value="default">Default</option>
           <option value="low">Low</option>
           <option value="medium">Medium</option>
           <option value="high">High</option>
@@ -59,20 +58,6 @@
       </div>
     </footer>
   </main>
-</div>
-
-<div id="settings-modal" class="modal hidden">
-  <div class="modal-box">
-    <h2>Settings</h2>
-    <label for="api-key-input">OpenRouter API key</label>
-    <input id="api-key-input" type="password" placeholder="sk-or-v1-…" autocomplete="off">
-    <p class="hint">Stored only in this browser's localStorage. Create a key at
-      <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>.</p>
-    <div class="modal-buttons">
-      <button id="settings-save">Save</button>
-      <button id="settings-cancel">Cancel</button>
-    </div>
-  </div>
 </div>
 
 <script src="vendor/marked.min.js"></script>

@@ -2,7 +2,6 @@
 "use strict";
 
 const Store = (() => {
-  const KEY_API = "orchat.apiKey";
   const KEY_SETTINGS = "orchat.settings";
   const KEY_INDEX = "orchat.index";
   const KEY_MODELS = "orchat.models";
@@ -25,13 +24,9 @@ const Store = (() => {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
 
-  // ---- API key ----
-  const getApiKey = () => localStorage.getItem(KEY_API) || "";
-  const setApiKey = (key) => localStorage.setItem(KEY_API, key.trim());
-
   // ---- Settings ----
   const getSettings = () =>
-    readJSON(KEY_SETTINGS, { defaultModel: "anthropic/claude-sonnet-4.5", reasoningEffort: "off" });
+    readJSON(KEY_SETTINGS, { defaultModel: "claude-sonnet-4-6", reasoningEffort: "default" });
   const setSettings = (s) => writeJSON(KEY_SETTINGS, s);
 
   // ---- Models cache ----
@@ -53,6 +48,8 @@ const Store = (() => {
       model: settings.defaultModel,
       systemPrompt: "",
       reasoningEffort: settings.reasoningEffort,
+      sessionId: null,    // Claude Code CLI session backing this conversation
+      sessionHash: null,  // fingerprint of the history that session represents
       messages: [],
     };
     writeJSON(KEY_CONVO(convo.id), convo);
@@ -88,7 +85,6 @@ const Store = (() => {
   }
 
   return {
-    getApiKey, setApiKey,
     getSettings, setSettings,
     getModelsCache, setModelsCache,
     listConversations, createConversation, loadConversation,
