@@ -12,6 +12,12 @@ bun server.js           # or: node server.js — then open http://localhost:8741
 
 Requirements: Bun or Node.js, and the [Claude Code CLI](https://claude.com/claude-code) installed and logged in (`claude auth status` should show your subscription).
 
+The server auto-locates the `claude` binary (PATH plus common install dirs like `~/.local/bin`). If it can't find it — e.g. you launched the server from an environment with a minimal PATH — set `CLAUDE_BIN` to the full path (`which claude` shows it):
+
+```sh
+CLAUDE_BIN=/path/to/claude bun server.js
+```
+
 ## Features
 
 - **Subscription-billed** — the server shells out to `claude -p`, which authenticates the same way your terminal `claude` does. No API key in the app.

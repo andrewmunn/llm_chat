@@ -17,6 +17,39 @@ const ROOT = __dirname;
 const SESSIONS_DIR = path.join(ROOT, ".claude-sessions");
 fs.mkdirSync(SESSIONS_DIR, { recursive: true });
 
+// Resolve the claude binary. When the server is launched from a GUI/launcher
+// (or any non-login shell), PATH may not include ~/.local/bin etc., so a bare
+// "claude" spawn fails with ENOENT. Check $CLAUDE_BIN, then PATH, then the
+// common install locations.
+function resolveClaude() {
+  const home = process.env.HOME || "";
+  const isExecutable = (p) => {
+    try { fs.accessSync(p, fs.constants.X_OK); return true; } catch { return false; }
+  };
+  if (process.env.CLAUDE_BIN && isExecutable(process.env.CLAUDE_BIN)) {
+    return process.env.CLAUDE_BIN;
+  }
+  const candidates = [];
+  for (const dir of (process.env.PATH || "").split(path.delimiter)) {
+    if (dir) candidates.push(path.join(dir, "claude"));
+  }
+  candidates.push(
+    path.join(home, ".local/bin/claude"),
+    path.join(home, ".claude/local/claude"),
+    "/opt/homebrew/bin/claude",
+    "/usr/local/bin/claude",
+    path.join(home, ".bun/bin/claude"),
+    path.join(home, ".npm-global/bin/claude"),
+  );
+  for (const c of candidates) {
+    if (isExecutable(c)) return c;
+  }
+  return "claude"; // last resort — let spawn try and report ENOENT
+}
+
+const CLAUDE_BIN = resolveClaude();
+console.log(`llm_chat: using claude binary at ${CLAUDE_BIN}`);
+
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -149,7 +182,7 @@ function runChat(params, req, res) {
     "X-Accel-Buffering": "no",
   });
 
-  const child = spawn("claude", args, {
+  const child = spawn(CLAUDE_BIN, args, {
     cwd: SESSIONS_DIR,
     env: cleanEnv(),
     stdio: ["pipe", "pipe", "pipe"],
@@ -252,7 +285,10 @@ function runChat(params, req, res) {
   });
 
   child.on("error", (err) => {
-    send({ type: "error", message: `failed to start claude CLI: ${err.message}` });
+    const hint = err.code === "ENOENT"
+      ? ` — the 'claude' binary wasn't found at ${CLAUDE_BIN}. Set CLAUDE_BIN to its full path (find it with 'which claude') and restart the server.`
+      : "";
+    send({ type: "error", message: `failed to start claude CLI: ${err.message}${hint}` });
     res.end();
   });
 
