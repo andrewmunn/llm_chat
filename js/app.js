@@ -21,6 +21,7 @@
     messages: $("#messages"),
     input: $("#input"),
     sendBtn: $("#send-btn"),
+    regenBtn: $("#regen-btn"),
     stopBtn: $("#stop-btn"),
   };
 
@@ -109,7 +110,27 @@
       }
     });
     els.sendBtn.addEventListener("click", send);
+    els.regenBtn.addEventListener("click", regenerateLast);
     els.stopBtn.addEventListener("click", () => abortController?.abort());
+  }
+
+  // Regenerate the most recent assistant message (composer shortcut).
+  function regenerateLast() {
+    if (!ensureReady()) return;
+    for (let i = convo.messages.length - 1; i >= 0; i--) {
+      if (convo.messages[i].role === "assistant") {
+        regenerate(i);
+        return;
+      }
+    }
+  }
+
+  // Show the composer regenerate button only when idle and the last message
+  // is an assistant reply that can be regenerated.
+  function updateRegenButton() {
+    const last = convo.messages[convo.messages.length - 1];
+    const show = !abortController && last && last.role === "assistant";
+    els.regenBtn.classList.toggle("hidden", !show);
   }
 
   // ---------- persistence helpers ----------
@@ -247,9 +268,11 @@
       empty.className = "empty-state";
       empty.innerHTML = "<h1>LLM Chat</h1><p>Pick a model, set a system prompt, and start writing.</p>";
       els.messages.appendChild(empty);
+      updateRegenButton();
       return;
     }
     convo.messages.forEach((msg, i) => els.messages.appendChild(buildMessageEl(msg, i)));
+    updateRegenButton();
     scrollToBottom(true);
   }
 
@@ -368,6 +391,13 @@
     area.className = "msg-edit-area";
     area.value = msg.content;
     inner.appendChild(area);
+    // Grow the textarea to fit its content so no inner scrolling is needed.
+    const autosize = () => {
+      area.style.height = "auto";
+      area.style.height = area.scrollHeight + "px";
+    };
+    area.addEventListener("input", autosize);
+    autosize();
 
     const buttons = document.createElement("div");
     buttons.className = "msg-edit-buttons";
@@ -514,6 +544,8 @@
   function setStreamingUI(streaming) {
     els.sendBtn.classList.toggle("hidden", streaming);
     els.stopBtn.classList.toggle("hidden", !streaming);
+    if (streaming) els.regenBtn.classList.add("hidden");
+    else updateRegenButton();
   }
 
   // ---------- misc ----------
@@ -522,10 +554,38 @@
     document.querySelector(".error-banner")?.remove();
     const banner = document.createElement("div");
     banner.className = "error-banner";
-    banner.textContent = text;
-    banner.addEventListener("click", () => banner.remove());
+
+    const msg = document.createElement("div");
+    msg.className = "error-text";
+    msg.textContent = text;
+    banner.appendChild(msg);
+
+    const actions = document.createElement("div");
+    actions.className = "error-actions";
+
+    const copy = document.createElement("button");
+    copy.textContent = "Copy";
+    copy.title = "Copy error to clipboard";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        copy.textContent = "Copied";
+        setTimeout(() => { copy.textContent = "Copy"; }, 1500);
+      } catch {
+        copy.textContent = "Copy failed";
+      }
+    });
+    actions.appendChild(copy);
+
+    const dismiss = document.createElement("button");
+    dismiss.textContent = "✕";
+    dismiss.title = "Dismiss";
+    dismiss.addEventListener("click", () => banner.remove());
+    actions.appendChild(dismiss);
+
+    banner.appendChild(actions);
+    // No auto-dismiss: errors stay until dismissed so they can be copied.
     document.body.appendChild(banner);
-    setTimeout(() => banner.remove(), 8000);
   }
 
   function scrollToBottom(force = false) {

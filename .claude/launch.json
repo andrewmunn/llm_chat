@@ -4,7 +4,8 @@
     {
       "name": "server",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["server.js", "8741"],
+      "runtimeArgs": ["server.js"],
+      "autoPort": true,
       "port": 8741
     }
   ]

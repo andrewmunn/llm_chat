@@ -379,6 +379,7 @@ select:focus, input:focus, textarea:focus { outline: 1px solid var(--accent-dim)
 .composer-buttons { display: flex; flex-direction: column; gap: 6px; }
 #send-btn { background: var(--accent-dim); border-color: var(--accent-dim); }
 #send-btn:hover { background: var(--accent); color: #10101a; }
+#regen-btn { font-size: 13px; white-space: nowrap; }
 #stop-btn { color: var(--danger); }
 
 .error-banner {
@@ -387,14 +388,35 @@ select:focus, input:focus, textarea:focus { outline: 1px solid var(--accent-dim)
   left: 50%;
   transform: translateX(-50%);
   z-index: 200;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   background: var(--bg-raised);
   border: 1px solid var(--danger);
   color: var(--danger);
   border-radius: 8px;
-  padding: 10px 16px;
+  padding: 10px 14px;
   max-width: 70vw;
-  cursor: pointer;
   box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+.error-banner .error-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 40vh;
+  overflow-y: auto;
+  user-select: text;
+}
+.error-banner .error-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.error-banner .error-actions button {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 3px 9px;
+  font-size: 12px;
 }
 
 .empty-state {

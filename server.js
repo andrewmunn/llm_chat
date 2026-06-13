@@ -10,7 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 
-const PORT = parseInt(process.argv[2] || "8741", 10);
+const PORT = parseInt(process.argv[2] || process.env.PORT || "8741", 10);
 const ROOT = __dirname;
 // Dedicated cwd for claude sessions: keeps project CLAUDE.md / settings out
 // of story conversations.
