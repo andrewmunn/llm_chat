@@ -90,7 +90,28 @@ function cleanEnv() {
   if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
     env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
   }
+  // Don't let a -p invocation auto-update the CLI mid-session: the updater
+  // repoints the ~/.local/bin/claude symlink, and a request landing in that
+  // swap window spawns a momentarily-broken symlink (ENOENT).
+  env.DISABLE_AUTOUPDATER = "1";
   return env;
+}
+
+// Resolve the binary to a concrete, executable file right before spawning.
+// CLAUDE_BIN is usually a symlink (~/.local/bin/claude → versions/X.Y.Z); an
+// external update (e.g. the desktop app) can momentarily break it, so follow
+// the symlink and retry briefly over the swap window.
+async function resolveSpawnableClaude() {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const real = fs.realpathSync(CLAUDE_BIN);
+      fs.accessSync(real, fs.constants.X_OK);
+      return real;
+    } catch {
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  }
+  return CLAUDE_BIN; // let spawn surface a real error if still unresolved
 }
 
 // Conversation instructions and transcripts ride inside the prompt rather
@@ -139,7 +160,7 @@ function handleChat(req, res) {
   });
 }
 
-function runChat(params, req, res) {
+async function runChat(params, req, res) {
   const { model, effort, systemPrompt, mode, messages, sessionId, prompt } = params;
 
   const args = [
@@ -182,7 +203,12 @@ function runChat(params, req, res) {
     "X-Accel-Buffering": "no",
   });
 
-  const child = spawn(CLAUDE_BIN, args, {
+  // Recreate the spawn cwd if it was removed, and resolve the binary to a
+  // concrete file (riding over any in-progress CLI auto-update).
+  fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+  const bin = await resolveSpawnableClaude();
+
+  const child = spawn(bin, args, {
     cwd: SESSIONS_DIR,
     env: cleanEnv(),
     stdio: ["pipe", "pipe", "pipe"],
@@ -286,7 +312,7 @@ function runChat(params, req, res) {
 
   child.on("error", (err) => {
     const hint = err.code === "ENOENT"
-      ? ` — the 'claude' binary wasn't found at ${CLAUDE_BIN}. Set CLAUDE_BIN to its full path (find it with 'which claude') and restart the server.`
+      ? ` — couldn't launch the 'claude' binary at ${bin} (it may be mid-update; retrying the request usually works). If it persists, set CLAUDE_BIN to its full path ('which claude') and restart.`
       : "";
     send({ type: "error", message: `failed to start claude CLI: ${err.message}${hint}` });
     res.end();
