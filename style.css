@@ -260,6 +260,7 @@ select:focus, input:focus, textarea:focus { outline: 1px solid var(--accent-dim)
   padding: 2px;
   z-index: 5;
 }
+.msg-tools.bottom { top: auto; bottom: -10px; }
 .msg:hover .msg-tools { display: flex; }
 .msg-tools button {
   border: none;

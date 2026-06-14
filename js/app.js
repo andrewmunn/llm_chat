@@ -281,21 +281,26 @@
     wrap.className = `msg ${msg.role}`;
     wrap.dataset.id = msg.id;
 
-    const tools = document.createElement("div");
-    tools.className = "msg-tools";
-    tools.appendChild(toolBtn("Copy", () => navigator.clipboard.writeText(msg.content)));
-    tools.appendChild(toolBtn("Edit", () => startEdit(wrap, msg, idx)));
-    if (msg.role === "assistant") {
-      tools.appendChild(toolBtn("Regenerate", () => regenerate(idx)));
-    }
-    const delBtn = toolBtn("Delete", () => {
-      convo.messages.splice(idx, 1);
-      saveConvo();
-      renderMessages();
-    });
-    delBtn.classList.add("tool-delete");
-    tools.appendChild(delBtn);
-    wrap.appendChild(tools);
+    // Build a fresh toolbar (a DOM node can't live in two places). Shown at
+    // both the top-right and bottom-right of the message on hover.
+    const makeTools = (position) => {
+      const tools = document.createElement("div");
+      tools.className = `msg-tools ${position}`;
+      tools.appendChild(toolBtn("Copy", () => navigator.clipboard.writeText(msg.content)));
+      tools.appendChild(toolBtn("Edit", () => startEdit(wrap, msg, idx)));
+      if (msg.role === "assistant") {
+        tools.appendChild(toolBtn("Regenerate", () => regenerate(idx)));
+      }
+      const delBtn = toolBtn("Delete", () => {
+        convo.messages.splice(idx, 1);
+        saveConvo();
+        renderMessages();
+      });
+      delBtn.classList.add("tool-delete");
+      tools.appendChild(delBtn);
+      return tools;
+    };
+    wrap.appendChild(makeTools("top"));
 
     const inner = document.createElement("div");
     inner.className = "msg-inner";
@@ -319,6 +324,7 @@
     }
 
     wrap.appendChild(inner);
+    wrap.appendChild(makeTools("bottom"));
     return wrap;
   }
 
