@@ -252,6 +252,7 @@
     els.systemPrompt.value = convo.systemPrompt || "";
     renderSystemPromptHint();
     renderMessages();
+    scrollToEnd(); // landing on a conversation shows its most recent messages
   }
 
   function renderSystemPromptHint() {
@@ -262,18 +263,25 @@
   }
 
   function renderMessages() {
-    els.messages.innerHTML = "";
+    const el = els.messages;
+    // Capture scroll intent BEFORE clearing — innerHTML="" resets scrollTop.
+    const wasNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    const prevScrollTop = el.scrollTop;
+
+    el.innerHTML = "";
     if (!convo.messages.length) {
       const empty = document.createElement("div");
       empty.className = "empty-state";
       empty.innerHTML = "<h1>LLM Chat</h1><p>Pick a model, set a system prompt, and start writing.</p>";
-      els.messages.appendChild(empty);
+      el.appendChild(empty);
       updateRegenButton();
       return;
     }
-    convo.messages.forEach((msg, i) => els.messages.appendChild(buildMessageEl(msg, i)));
+    convo.messages.forEach((msg, i) => el.appendChild(buildMessageEl(msg, i)));
     updateRegenButton();
-    scrollToBottom(true);
+    // Follow new content only if already at the bottom; otherwise stay put so
+    // a finished stream (or an edit/delete) doesn't yank the view down.
+    el.scrollTop = wasNearBottom ? el.scrollHeight : prevScrollTop;
   }
 
   function buildMessageEl(msg, idx) {
@@ -452,6 +460,7 @@
     els.input.value = "";
     saveConvo();
     renderMessages();
+    scrollToEnd(); // show the message the user just sent
     runCompletion();
   }
 
@@ -598,6 +607,11 @@
     const el = els.messages;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
     if (force || nearBottom) el.scrollTop = el.scrollHeight;
+  }
+
+  // Unconditionally jump to the latest message (conversation load, sending).
+  function scrollToEnd() {
+    els.messages.scrollTop = els.messages.scrollHeight;
   }
 
   function formatNum(n) {
